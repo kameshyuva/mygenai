@@ -2,31 +2,30 @@ import asyncio
 from llama_index.llms.ollama import Ollama
 from llama_index.tools.mcp import BasicMCPClient, McpToolSpec
 
-# 1. Import FunctionCallingAgent instead of ReActAgent
-from llama_index.core.agent import FunctionCallingAgent
+# 1. NEW IMPORT: Use the Workflow-based FunctionAgent
+from llama_index.core.agent.workflow import FunctionAgent
 
-# Import our reusable router class from the previous step
+# Import our custom auto-tuning semantic router
 from auto_router import AutoTuningRouter
 
 async def main():
     # Initialize the LLM
-    # Note: llama3.1 and llama3.2 have excellent native function calling support
     llm = Ollama(model="llama3.2", request_timeout=120.0, temperature=0.0)
     
-    # Connect to the MCP Server
+    # Connect to the local SQLite MCP Server
+    print("Connecting to MCP Server...")
     mcp_client = BasicMCPClient("http://localhost:8000/sse")
     mcp_tool_spec = McpToolSpec(client=mcp_client)
     mcp_tools = await mcp_tool_spec.to_tool_list_async()
     
-    # 2. Initialize the Function Calling Agent
-    # We turn verbose=True so you can see how much cleaner the native tool call is
-    agent = FunctionCallingAgent.from_tools(
+    # 2. NEW INSTANTIATION: Direct initialization, no 'from_tools' or 'verbose'
+    agent = FunctionAgent(
         tools=mcp_tools, 
-        llm=llm, 
-        verbose=True 
+        llm=llm,
+        system_prompt="You are a helpful data analyst. Use your tools to answer user queries."
     )
 
-    # Initialize our custom Semantic Router
+    # Initialize the Semantic Router
     router = AutoTuningRouter(
         redis_url="redis://localhost:6379",
         embedding_model="nomic-embed-text",
@@ -37,7 +36,7 @@ async def main():
         print(f"\n=========================================")
         print(f"USER: {query}")
         
-        # --- FAST PATH: Check the Router ---
+        # --- FAST PATH: Check Redis for a known route ---
         target_tool_name = router.get_cached_tool(query)
         
         if target_tool_name:
@@ -45,10 +44,10 @@ async def main():
             selected_tool = next(t for t in mcp_tools if t.metadata.name == target_tool_name)
             
             try:
-                # The router extracts arguments directly via JSON
+                # Bypass the agent and use the LLM just to extract JSON arguments
                 tool_kwargs = await router.extract_arguments(query, selected_tool.metadata.fn_schema_str, llm)
-                print(f"Extracted Args: {tool_kwargs}")
                 
+                # Execute the tool locally
                 result = selected_tool.fn(**tool_kwargs)
                 print(f"✅ EXECUTION RESULT:\n{result}")
                 return
@@ -56,22 +55,35 @@ async def main():
             except ValueError as e:
                 print(f"Argument extraction failed: {e}. Falling back to Slow Path...")
 
-        # --- SLOW PATH: Let the Function Calling Agent figure it out ---
-        print("☁️ SLOW PATH: Unknown intent. Executing Function Calling Agent...")
+        # --- SLOW PATH: First time seeing this intent ---
+        print("☁️ SLOW PATH: Executing Function Agent Workflow...")
         
-        # The agent will now use native function calling to evaluate tools
-        response = await agent.achat(query)
-        print(f"\n✅ AGENT ANSWER:\n{response.response}")
+        # 3. NEW EXECUTION: Use .run() instead of .achat()
+        response = await agent.run(query)
+        print(f"✅ AGENT ANSWER:\n{str(response)}")
         
         # --- LEARN: Cache the Agent's decision for next time ---
-        if response.sources:
-            used_tool = response.sources[0].tool_name
-            print(f"🧠 LEARNING: Saving route for '{used_tool}'")
-            router.learn_route(query, used_tool)
+        # Note: In the new Workflow architecture, to get the exact tool name robustly 
+        # in production, you would listen to `ToolCall` events in the agent stream. 
+        # For this script, we can parse the response's memory if a tool was used.
+        try:
+            # Check the agent's memory for the most recent tool call
+            history = await agent.memory.get()
+            if history and hasattr(history[-1], 'additional_kwargs') and 'tool_calls' in history[-1].additional_kwargs:
+                used_tool = history[-1].additional_kwargs['tool_calls'][0].function.name
+                print(f"🧠 LEARNING: Saving route for '{used_tool}'")
+                router.learn_route(query, used_tool)
+        except Exception as e:
+            # Failsafe if it was a standard conversation without tools
+            pass
 
-    # --- Execution ---
-    await execute_query("Please add David to the Marketing team with a 75000 salary.")
-    await execute_query("We need to hire Jessica into the Marketing department at 80000.")
+    # --- Execution Tests ---
+    
+    # Test 1: The system has to figure it out and learn (Slow Path)
+    await execute_query("Can you tell me the average salary in the Sales department?")
+    
+    # Test 2: The system instantly knows what to do based on Test 1 (Fast Path)
+    await execute_query("What's the average salary for the Engineering team?")
 
 if __name__ == "__main__":
     asyncio.run(main())
