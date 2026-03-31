@@ -1,3 +1,6 @@
+
+#pip install arize-phoenix openinference-instrumentation-llama-index llama-index llama-index-llms-ollama
+
 import phoenix as px
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from phoenix.otel import register
