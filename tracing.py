@@ -1,6 +1,8 @@
 
 #pip install arize-phoenix openinference-instrumentation-llama-index llama-index llama-index-llms-ollama
 
+
+import atexit
 import phoenix as px
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from phoenix.otel import register
@@ -8,38 +10,52 @@ from phoenix.otel import register
 class PhoenixTracingManager:
     """
     A singleton-style manager to handle Arize Phoenix tracing initialization 
-    for LlamaIndex agents. Ensures instrumentation only happens once.
+    for LlamaIndex agents using the recommended BatchSpanProcessor.
     """
     _is_instrumented = False
     _session = None
+    _tracer_provider = None
 
     @classmethod
     def enable_tracing(cls, project_name: str = "llama-agent-tracing", port: int = 6006):
         """
-        Launches the Phoenix app (if not already running) and registers 
-        the LlamaIndex instrumentor.
+        Launches the Phoenix app and registers the LlamaIndex instrumentor
+        using asynchronous batch processing.
         """
-        # 1. Launch the Phoenix app only once per process
+        # 1. Launch the Phoenix app
         if cls._session is None:
             cls._session = px.launch_app(port=port)
             print(f"[Tracing] Phoenix dashboard is live at: {cls._session.url}")
 
-        # 2. Instrument LlamaIndex only once
+        # 2. Instrument LlamaIndex with Batch Processing
         if not cls._is_instrumented:
             endpoint = f"http://localhost:{port}/v1/traces"
             
-            tracer_provider = register(
+            # batch=True forces OpenTelemetry to use the BatchSpanProcessor
+            cls._tracer_provider = register(
                 project_name=project_name,
-                endpoint=endpoint
+                endpoint=endpoint,
+                batch=True 
             )
             
-            LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
+            LlamaIndexInstrumentor().instrument(tracer_provider=cls._tracer_provider)
             cls._is_instrumented = True
-            print(f"[Tracing] OpenTelemetry instrumentation enabled for project: '{project_name}'")
+            
+            # Register the shutdown hook to flush the batch queue on exit
+            atexit.register(cls.shutdown)
+            
+            print(f"[Tracing] Batch OpenTelemetry instrumentation enabled for project: '{project_name}'")
         else:
             print(f"[Tracing] Instrumentation already active. Logging to project: '{project_name}'")
             
         return cls._session
+
+    @classmethod
+    def shutdown(cls):
+        """Flushes remaining spans in the BatchSpanProcessor queue."""
+        if cls._tracer_provider:
+            print("[Tracing] Flushing remaining spans to Phoenix before exit...")
+            cls._tracer_provider.shutdown()
 
     @classmethod
     def get_dashboard_url(cls) -> str:
