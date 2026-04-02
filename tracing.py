@@ -61,3 +61,13 @@ class PhoenixTracingManager:
     def get_dashboard_url(cls) -> str:
         """Returns the active Phoenix dashboard URL, if running."""
         return cls._session.url if cls._session else "Phoenix is not running."
+
+# Add this inside your PhoenixTracingManager class in tracing_manager.py
+
+    @classmethod
+    def get_tracer(cls, module_name: str):
+        """Returns a Phoenix-aware tracer for manual span decorators."""
+        if not cls._tracer_provider:
+            raise RuntimeError("Tracing not initialized. Call enable_tracing() first.")
+        return cls._tracer_provider.get_tracer(module_name)
+
