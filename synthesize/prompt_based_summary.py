@@ -1,23 +1,20 @@
-class AlertSummaryWorkflow(Workflow):
-    
-    # ... (previous steps: fetch_id and fetch_sensors) ...
+import json
+from typing import Union, Dict, List
+from llama_index.core import PromptTemplate
+from llama_index.core.llms.llm import LLM
 
-    @step
-    async def compile_summary(self, ev: SensorsFetchedEvent) -> StopEvent:
-        """
-        Takes the raw JSON sensor/alert data and the user's query,
-        and uses an LLM to generate a plain-text summary.
-        """
-        # 1. Format the JSON payload for the LLM
-        # Using indent=2 makes the JSON structure easier for the LLM's attention mechanism to parse
-        alerts_data_json = json.dumps(ev.sensors, indent=2)
+class JSONDataSummarizer:
+    """
+    A reusable utility class to summarize raw JSON data against a user query using an LLM.
+    """
+    def __init__(self, llm: LLM, custom_prompt: str = None):
+        self.llm = llm
         
-        # 2. Define the Prompt Template
-        # This acts as the strict instruction set for how the LLM should handle the JSON
-        prompt_tmpl = PromptTemplate(
+        # Default prompt optimized for industrial/alert data
+        default_prompt = (
             "You are an expert industrial diagnostic assistant.\n"
             "A user has asked the following question: '{query}'\n\n"
-            "Here is the raw JSON data retrieved from the backend APIs regarding the asset's sensors and alerts:\n"
+            "Here is the raw JSON data retrieved from the backend APIs:\n"
             "```json\n"
             "{json_data}\n"
             "```\n\n"
@@ -25,19 +22,27 @@ class AlertSummaryWorkflow(Workflow):
             "Format the active alerts clearly. Do not hallucinate data that is not in the JSON. "
             "Do not output raw JSON in your final response."
         )
+        
+        # Allow overriding the prompt if needed for other use cases
+        template_str = custom_prompt if custom_prompt else default_prompt
+        self.prompt_tmpl = PromptTemplate(template_str)
 
-        # 3. Inject the variables into the template
-        formatted_prompt = prompt_tmpl.format(
-            query=ev.user_query,
-            json_data=alerts_data_json
+    async def generate_summary(self, query: str, data: Union[Dict, List, str]) -> str:
+        """
+        Takes the user query and raw data, formats it, and calls the LLM.
+        """
+        # Ensure the data is a nicely formatted JSON string
+        if isinstance(data, (dict, list)):
+            json_string = json.dumps(data, indent=2)
+        else:
+            json_string = str(data)
+
+        # Inject into the template
+        formatted_prompt = self.prompt_tmpl.format(
+            query=query,
+            json_data=json_string
         )
 
-        # 4. Initialize your LLM
-        # Using Ollama for local, efficient inference on this summarization task
-        llm = Ollama(model="llama3", request_timeout=120.0)
-
-        # 5. Execute the asynchronous completion call
-        response = await llm.acomplete(formatted_prompt)
-
-        # 6. Return the text response to complete the workflow and send to the Angular frontend
-        return StopEvent(result=str(response))
+        # Execute completion
+        response = await self.llm.acomplete(formatted_prompt)
+        return str(response)
