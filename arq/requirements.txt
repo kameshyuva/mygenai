@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+gunicorn
+arq
+redis
+llama-index-core
+llama-index-llms-ollama
+# Your MCP tool packages...
