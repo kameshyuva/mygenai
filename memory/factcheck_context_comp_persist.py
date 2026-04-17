@@ -1,3 +1,6 @@
+#pip install llama-index-storage-chat-store-cassandra cassandra-driver
+
+
 from llama_index.core.agent import FunctionAgent
 from llama_index.core.memory import Memory, FactExtractionMemoryBlock
 from llama_index.llms.ollama import Ollama
