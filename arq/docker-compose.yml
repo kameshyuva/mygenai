@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - agent_net
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ./ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - agent_net
+    restart: unless-stopped
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_VRAM=0 
+
+  api:
+    build: .
+    # Updated to run Gunicorn with 2 Uvicorn workers
+    command: gunicorn main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      - redis
+      - ollama
+    networks:
+      - agent_net
+
+  worker:
+    build: .
+    # ARQ worker command remains the same
+    command: arq arq_worker.WorkerSettings
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      - redis
+      - ollama
+    networks:
+      - agent_net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: '8G'
+
+networks:
+  agent_net:
+    driver: bridge
