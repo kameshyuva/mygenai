@@ -1,3 +1,7 @@
+#pip install better_profanity presidio-analyzer presidio-anonymizer
+#python -m spacy download en_core_web_lg 
+
+
 import re
 from typing import Optional
 from better_profanity import profanity
