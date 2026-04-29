@@ -31,3 +31,11 @@ agent = ReActAgent.from_tools(
     memory=memory,
     verbose=True
 )
+
+
+system_prompt = """
+You are a helpful assistant.
+CRITICAL INSTRUCTION FOR TOOL USE: 
+Every tool requires its arguments to be nested inside a root key called "request". 
+If you receive a tool validation error, it is likely because you forgot the "request" wrapper. Correct your JSON and try again.
+"""
