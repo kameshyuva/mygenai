@@ -1,0 +1,15 @@
+[project]
+name = "agent-backend"
+version = "1.0.0"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+    "llama-index-core>=0.10.0",
+    "llama-index-llms-ollama",
+    "arq>=0.25.0",             # For async background tasks
+    "redis>=5.0.0",            # Backing for ARQ state
+    "shared-libs"              # Local reference to your shared models
+]
+
+[tool.uv.sources]
+shared-libs = { workspace = true }
