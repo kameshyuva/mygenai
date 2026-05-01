@@ -1,0 +1,11 @@
+[project]
+name = "ai-monorepo-workspace"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+[tool.uv.workspace]
+members = [
+    "agent-backend",
+    "shared-libs",
+    "mcp-servers/*"
+]
