@@ -1,0 +1,11 @@
+[project]
+name = "mcp-alert-correlator"
+version = "1.0.0"
+dependencies = [
+    "mcp>=0.1.0",
+    "sqlmodel>=0.0.16",        # Or whichever DB ORM you use
+    "shared-libs"              # Pulls in shared schemas to ensure data consistency
+]
+
+[tool.uv.sources]
+shared-libs = { workspace = true }
