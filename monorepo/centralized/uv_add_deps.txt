@@ -1,0 +1,8 @@
+# 1. Add the core Phoenix OTel wrapper to your shared library
+uv add --project shared-libs arize-phoenix-otel opentelemetry-api
+
+# 2. Add FastAPI instrumentation to the API Gateway
+uv add --project api-gateway opentelemetry-instrumentation-fastapi
+
+# 3. Add LlamaIndex instrumentation to the Agent Core
+uv add --project agents-core openinference-instrumentation-llama-index
