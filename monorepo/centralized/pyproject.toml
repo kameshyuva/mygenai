@@ -1,0 +1,22 @@
+[project]
+name = "ai-monorepo-workspace"
+version = "0.1.0"
+description = "Monorepo workspace for LlamaIndex agents, API gateway, and MCP servers"
+requires-python = ">=3.11"
+
+# The root project acts only as a workspace container. 
+# It does not have its own dependencies.
+dependencies = []
+
+[tool.uv.workspace]
+# Define all the sibling packages that belong to this workspace.
+members = [
+    "api-gateway",
+    "agents-core",
+    "shared-libs",
+    "mcp-servers/*"  # The wildcard automatically includes any new MCP servers you add here
+]
+
+# (Optional) You can enforce a unified dependency resolution strategy
+[tool.uv]
+resolution = "highest"
