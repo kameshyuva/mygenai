@@ -1,0 +1,85 @@
+services:
+  # ---------------------------------------------------------
+  # Infrastructure Services
+  # ---------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          cpus: '6' # Reserves 2 cores for the OS and API Gateway
+          memory: 32G
+    restart: unless-stopped
+
+  phoenix:
+    image: arizeai/phoenix:latest
+    container_name: phoenix
+    ports:
+      - "6006:6006" # UI for evaluating agent traces
+      - "4317:4317" # OTLP gRPC receiver
+    restart: unless-stopped
+
+  # ---------------------------------------------------------
+  # Custom Workspace Packages (Using Isolated Dockerfiles)
+  # ---------------------------------------------------------
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    restart: on-failure
+
+  agents-worker:
+    build:
+      context: .
+      dockerfile: agents-core/Dockerfile
+    container_name: agents-worker
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:4317
+      - MCP_ALERT_SERVER_URL=http://mcp-alert-correlator:8001/sse 
+    depends_on:
+      - redis
+      - ollama
+      - phoenix
+      - mcp-alert-correlator
+    deploy:
+      resources:
+        limits:
+          cpus: '2' # Prevents the worker from starving the main thread during heavy loops
+    restart: on-failure
+
+  mcp-alert-correlator:
+    build:
+      context: .
+      dockerfile: mcp-servers/alert_correlator/Dockerfile
+    container_name: mcp-alert-correlator
+    environment:
+      - PORT=8001
+    ports:
+      - "8001:8001"
+    restart: on-failure
+
+volumes:
+  ollama_data:
