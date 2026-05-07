@@ -1,0 +1,56 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    environment:
+      # --- Concurrency & Queue Management ---
+      # Balances multi-agent requests without overwhelming the CPU
+      - OLLAMA_NUM_PARALLEL=4
+      # Expanded to prevent dropping events during high-throughput ARQ bursts
+      - OLLAMA_MAX_QUEUE=1024
+      # Keeps multiple specialized models warm in the 64GB RAM pool
+      - OLLAMA_MAX_LOADED_MODELS=3
+      # Bypasses disk-load overhead for continuous agent loops
+      - OLLAMA_KEEP_ALIVE=-1
+      # Ensures the service listens to the Nginx proxy network
+      - OLLAMA_HOST=0.0.0.0
+      
+      # --- Memory & Cache Optimizations ---
+      # Forces models into system memory upfront, bypassing disk paging
+      - OLLAMA_NO_MMAP=1
+      # Enables flash attention (prerequisite for KV cache compression)
+      - OLLAMA_FLASH_ATTENTION=1
+      # Compresses KV cache by 50% to prevent memory bandwidth saturation
+      - OLLAMA_KV_CACHE_TYPE=q8_0
+      
+    ulimits:
+      # Required OS permissions to allow `--mlock` via Modelfile/API
+      memlock:
+        soft: -1
+        hard: -1
+        
+    volumes:
+      - ollama_data:/root/.ollama
+      
+    # Exposing the port is optional if all traffic routes through an Nginx proxy,
+    # but useful for direct local debugging.
+    ports:
+      - "11434:11434"
+      
+    networks:
+      - ai_proxy_network
+
+    # Routes metadata to the logging stack
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224 
+        tag: ollama.inference
+
+volumes:
+  ollama_data:
+
+networks:
+  ai_proxy_network:
+    driver: bridge
