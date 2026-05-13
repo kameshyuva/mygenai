@@ -1,27 +1,22 @@
+import redis
 from llama_index.vector_stores.redis import RedisVectorStore
-from llama_index.storage.kvstore.redis import RedisKVStore
-from llama_index.core.storage import StorageContext
-from llama_index.core.storage.docstore import KVDocumentStore
+from llama_index.storage.chat_store.redis import RedisChatStore
 
-def get_redis_storage_context(redis_url: str = "redis://localhost:6379") -> StorageContext:
-    """
-    Configures Redis as the unified backend for both Vector Storage and Key-Value Storage.
-    """
-    # Configure Redis for Vectors
-    vector_store = RedisVectorStore(
-        redis_url=redis_url,
+REDIS_URL = "redis://localhost:6379"
+
+def get_redis_vector_store():
+    # VectorMemoryBlock needs this directly
+    return RedisVectorStore(
+        redis_url=REDIS_URL,
         index_name="agent_vector_history",
         overwrite=False
     )
 
-    # Configure Redis for Key-Value/Documents
-    kv_store = RedisKVStore(redis_url=redis_url)
-    doc_store = KVDocumentStore(kv_store)
+def get_redis_chat_store():
+    # If you want persistent Short-Term Memory, use this. 
+    # If not, you can just use SimpleChatStore() in agent.py
+    return RedisChatStore(redis_url=REDIS_URL)
 
-    # Create and return the unified Storage Context
-    storage_context = StorageContext.from_defaults(
-        vector_store=vector_store,
-        docstore=doc_store,
-    )
-    
-    return storage_context
+def get_raw_redis_client():
+    # For manually saving/loading Facts in the wrapper
+    return redis.Redis.from_url(REDIS_URL)
