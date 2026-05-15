@@ -88,23 +88,23 @@ class RedisStorageProvider:
 
 class ChromaStorageProvider:
     """
-    Implementation using Chroma for Vectors and Local Files for Chat/Facts.
-    Useful for local CPU setups without a running Redis container.
+    Implementation using a separate Chroma instance via HTTP.
+    Facts and Chat History remain local (SimpleChatStore/File) as Chroma is vector-only.
     """
-    def __init__(self, persist_dir: str = "./chroma_db"):
-        self.persist_dir = persist_dir
-        self.facts_dir = os.path.join(persist_dir, "facts")
+    def __init__(self, host: str = "localhost", port: int = 8000, facts_dir: str = "./facts"):
+        self.facts_dir = facts_dir
         os.makedirs(self.facts_dir, exist_ok=True)
         
-        # Initialize the persistent Chroma client
-        self.chroma_client = chromadb.PersistentClient(path=persist_dir)
+        # Connect to the external Chroma instance via HTTP
+        self.chroma_client = chromadb.HttpClient(host=host, port=port)
 
     def get_vector_store(self) -> BaseVectorStore:
+        # Note: If the server is just starting, it might take a moment to be ready
         chroma_collection = self.chroma_client.get_or_create_collection("agent_vector_history")
         return ChromaVectorStore(chroma_collection=chroma_collection)
 
     def get_chat_store(self) -> BaseChatStore:
-        # Chroma does not handle key-value chat history, so we use RAM.
+        # Chroma is vector-only; Short-term history stays in RAM
         return SimpleChatStore()
 
     def save_facts(self, session_id: str, facts: List[str]) -> None:
