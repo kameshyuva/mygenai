@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  llama-gemma4-cpu:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: gemma4-mtp-server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/models
+    command: >
+      -m /models/gemma-4-e4b.gguf
+      -md /models/gemma-4-e4b-assistant.gguf
+      --spec-type draft-mtp
+      --host 0.0.0.0
+      --port 8080
+      --ctx-size 8192
+      --threads 8
+      --chat-template-kwargs '{"enable_thinking":true}'
+    restart: unless-stopped
