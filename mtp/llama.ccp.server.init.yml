@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------
+  # 1. The Init Container (Model Downloader)
+  # -------------------------------------------------------------
+  model-downloader:
+    image: alpine:latest
+    container_name: gemma-model-downloader
+    volumes:
+      - ./models:/models
+    # A lightweight script to download the models only if they are missing
+    command: >
+      /bin/sh -c "
+      apk add --no-cache curl &&
+      echo 'Checking for target model...' &&
+      if [ ! -f /models/gemma-4-e4b.gguf ]; then
+        echo 'Downloading Gemma 4 E4B (Q4_K_M)...' &&
+        curl -L https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf -o /models/gemma-4-e4b.gguf;
+      else
+        echo 'Target model already exists. Skipping.';
+      fi &&
+      echo 'Checking for assistant model...' &&
+      if [ ! -f /models/gemma-4-e4b-assistant.gguf ]; then
+        echo 'Downloading Gemma 4 E4B Assistant (Q4_K_M)...' &&
+        curl -L https://huggingface.co/AtomicChat/gemma-4-E4B-it-assistant-GGUF/resolve/main/gemma-4-E4B-it-assistant.Q4_K_M.gguf -o /models/gemma-4-e4b-assistant.gguf;
+      else
+        echo 'Assistant model already exists. Skipping.';
+      fi
+      "
+
+  # -------------------------------------------------------------
+  # 2. The Main llama.cpp Server (MTP enabled)
+  # -------------------------------------------------------------
+  llama-gemma4-mtp:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: gemma4-mtp-server
+    # CRITICAL: Do not start until the downloader container finishes successfully
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/models
+    command: >
+      -m /models/gemma-4-e4b.gguf
+      -md /models/gemma-4-e4b-assistant.gguf
+      --spec-type draft-mtp
+      --spec-draft-n-max 3
+      --spec-draft-p-min 0.75
+      --host 0.0.0.0
+      --port 8080
+      --threads 8
+      --ctx-size 8192
+      --batch-size 512
+      --chat-template-kwargs '{"enable_thinking":true}'
+    restart: unless-stopped
