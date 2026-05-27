@@ -48,10 +48,18 @@ class OllamaProvider:
         self.base_url = base_url
 
     def get_llm(self) -> LLM:
+        # For Ollama, generation settings are passed via additional_kwargs["options"]
         return Ollama(
             base_url=self.base_url,
             model="llama3.2:3b",
-            request_timeout=60.0
+            temperature=0.3,
+            request_timeout=60.0,
+            additional_kwargs={
+                "options": {
+                    "top_k": 40,
+                    "top_p": 0.9,
+                }
+            }
         )
 
     def get_embedding(self) -> BaseEmbedding:
@@ -68,6 +76,9 @@ class LlamaCppProvider:
     """
     Concrete implementation of ModelProvider utilizing OpenAI-compatible llama.cpp servers.
     Optimized for heavy agentic workloads leveraging Multi-Token Prediction (MTP).
+    
+    Note: Hardware allocations (num_ctx, num_batch, num_thread) are handled 
+    exclusively by the docker-compose server backend configuration.
     """
     def __init__(
         self, 
@@ -85,9 +96,17 @@ class LlamaCppProvider:
             is_chat_model=True,
             is_function_calling_model=True,
             timeout=120.0,
+            
+            # Sampling Parameters
+            temperature=0.7,
+            
             additional_kwargs={
                 "seed": 42,
+                "top_p": 0.95,
+                
+                # Custom llama.cpp-specific generation parameters passed via extra_body
                 "extra_body": {
+                    "top_k": 40,
                     "min_p": 0.05,
                     "repeat_penalty": 1.15
                 }
@@ -110,7 +129,7 @@ if __name__ == "__main__":
     
     print("Testing structural subtyping validation...")
     
-    # Instantiate the concrete objects
+    # Instantiate the concrete objects under the Protocol interface
     ollama_infra: ModelProvider = OllamaProvider()
     llamacpp_infra: ModelProvider = LlamaCppProvider()
     
