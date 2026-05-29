@@ -1,0 +1,67 @@
+# --------------------------------------------------
+# Global Proxy Settings
+# --------------------------------------------------
+# Uncomment these two lines if you need to debug the raw JSON payloads
+# logLevel: debug
+# logToStdout: "both"
+
+# --------------------------------------------------
+# Model Server Definitions
+# --------------------------------------------------
+models:
+  
+  # 1. Heavy Agent Engine (Gemma 4 E4B)
+  "gemma4-e4b":
+    ttl: 300 
+    cmd: >
+      llama-server 
+      -m /models/gemma-4-e4b-it-q4_k_m.gguf 
+      --port ${PORT} 
+      --threads 8 
+      --ctx-size 8192 
+      --batch-size 512
+      --mlock
+      -fa 
+      --reasoning on
+
+  # 2. Fast Utility/Guardrail Engine (Gemma 4 E2B)
+  "gemma4-e2b":
+    ttl: 120
+    cmd: >
+      llama-server 
+      -m /models/gemma-4-e2b.gguf 
+      --port ${PORT} 
+      --threads 8 
+      --ctx-size 8192 
+      --batch-size 512
+      --mlock
+      -fa
+
+  # 3. Vectorization Engine (Qwen3 Embedding 0.6B)
+  "qwen3-embed":
+    ttl: 600
+    cmd: >
+      llama-server 
+      -m /models/qwen3-embedding-0.6b.gguf 
+      --port ${PORT} 
+      --threads 4 
+      --batch-size 512
+      --embedding 
+      --pooling mean
+      --mlock
+
+# --------------------------------------------------
+# The Matrix Resource Solver (Concurrent Mode)
+# --------------------------------------------------
+matrix:
+  vars:
+    # Map short variables to your exact model keys
+    agent: "gemma4-e4b"
+    util: "gemma4-e2b"
+    embed: "qwen3-embed"
+
+  sets:
+    # Rule: All three models are legally allowed to run side-by-side.
+    # Because you have 64GB of RAM and this only takes ~11GB, 
+    # llama-swap will never trigger a kill sequence.
+    allowed_states: "(agent & util & embed)"
