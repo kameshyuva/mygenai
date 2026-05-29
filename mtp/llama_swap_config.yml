@@ -1,0 +1,47 @@
+models:
+  # --------------------------------------------------
+  # 1. Heavy Agent Engine (Gemma 4 E4B)
+  # --------------------------------------------------
+  - id: "gemma4-e4b"
+    # Stays loaded for 5 minutes after the last request
+    ttl: 300 
+    cmd: >
+      llama-server 
+      -m /models/gemma-4-e4b-it-q4_k_m.gguf 
+      --port ${PORT} 
+      --threads 8 
+      --ctx-size 8192 
+      --batch-size 512
+      --mlock
+      --chat-template-kwargs '{"enable_thinking":true}'
+
+  # --------------------------------------------------
+  # 2. Fast Utility Engine (Gemma 4 E2B)
+  # --------------------------------------------------
+  - id: "gemma4-e2b"
+    # Stays loaded for 2 minutes after the last request
+    ttl: 120
+    cmd: >
+      llama-server 
+      -m /models/gemma-4-e2b.gguf 
+      --port ${PORT} 
+      --threads 8 
+      --ctx-size 8192 
+      --batch-size 512
+      --mlock
+
+  # --------------------------------------------------
+  # 3. Vectorization Engine (Qwen3 Embedding 0.6B)
+  # --------------------------------------------------
+  - id: "qwen3-embed"
+    # Embeddings are called frequently; keep warm for 10 minutes
+    ttl: 600
+    cmd: >
+      llama-server 
+      -m /models/qwen3-embedding-0.6b.gguf 
+      --port ${PORT} 
+      --threads 4 
+      --batch-size 512
+      --embedding 
+      --pooling mean
+      --mlock
