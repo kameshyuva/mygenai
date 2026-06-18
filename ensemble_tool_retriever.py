@@ -1,3 +1,5 @@
+#pip install llama-index-retrievers-bm25
+
 from llama_index.core.objects import ObjectIndex
 from llama_index.core import VectorStoreIndex
 from llama_index.retrievers.bm25 import BM25Retriever
