@@ -46,3 +46,19 @@ ensemble_tool_retriever = SafeObjectRetriever(
     retriever=fusion_retriever,
     object_node_mapping=obj_index._object_node_mapping
 )
+
+
+import types
+
+# 1. Get your tools from MCP
+mcp_tools = mcp_spec.to_tool_list()
+
+# 2. SHIELD THE TOOLS: Prevent LlamaIndex from copying the live MCP client functions
+for tool in mcp_tools:
+    tool.__deepcopy__ = types.MethodType(lambda self, memo: self, tool)
+
+# 3. Proceed with building your ObjectIndex
+obj_index = ObjectIndex.from_objects(
+    mcp_tools,
+    index_cls=VectorStoreIndex,
+)
