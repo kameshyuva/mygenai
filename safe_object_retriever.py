@@ -62,3 +62,22 @@ obj_index = ObjectIndex.from_objects(
     mcp_tools,
     index_cls=VectorStoreIndex,
 )
+
+
+from llama_index.core.objects import ObjectRetriever
+
+class SafeObjectRetriever(ObjectRetriever):
+    def __deepcopy__(self, memo):
+        # Defeats memory duplication (The RLock error)
+        return self
+        
+    def __getstate__(self):
+        # Defeats the Telemetry Pickler! 
+        # Hands it an empty state so it skips crawling into the MCP tools/BM25.
+        return {}
+        
+    def __setstate__(self, state):
+        # Ensures the object doesn't break if LlamaIndex tries to reconstruct it
+        pass
+
+# ... continue with your ensemble_tool_retriever creation as before ...
