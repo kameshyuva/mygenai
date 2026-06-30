@@ -36,3 +36,22 @@ if hasattr(FunctionTool, 'model_copy'):
 BasicMCPClient.__deepcopy__ = bypass_pydantic_clone
 if hasattr(BasicMCPClient, 'model_copy'):
     BasicMCPClient.model_copy = bypass_pydantic_clone
+
+
+import logging
+import sys
+
+# 1. Force the root logger to output to your terminal/Docker logs
+logging.basicConfig(
+    stream=sys.stdout, 
+    level=logging.DEBUG,
+    format='%(asctime)s - [%(levelname)s] %(name)s: %(message)s'
+)
+
+# 2. Target the specific LlamaIndex components causing the crash
+logging.getLogger('llama_index.core.workflow').setLevel(logging.DEBUG)
+logging.getLogger('llama_index.core.agent').setLevel(logging.DEBUG)
+logging.getLogger('llama_index_instrumentation').setLevel(logging.DEBUG)
+
+# Optional: If you want to see the raw Pydantic validation steps
+logging.getLogger('pydantic').setLevel(logging.DEBUG)
